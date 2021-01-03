@@ -1,0 +1,41 @@
+version: '3'
+services:
+
+  webserver:
+    image: nginx
+    container_name: web_server
+    ports:
+      - 80:80
+    volumes:
+      - ./nginx.docker.conf:/etc/nginx/conf.d/default.conf
+      - ./server/static:/var/www/static
+    restart: unless-stopped
+    depends_on:
+      - server
+
+  server:
+    container_name: tic_tac_toe_server
+    build:
+      context: .
+      dockerfile: Dockerfile
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+    volumes:
+      - ./server:/server/server
+      - ./tests:/server/tests
+    ports:
+      - '5000:5000'
+    depends_on:
+      - postgres
+      - redis
+
+  redis:
+    image: "redis:alpine"
+
+  postgres:
+    image: "postgres:11"
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: postgres
+      POSGRES_DB: tictactoe_db
