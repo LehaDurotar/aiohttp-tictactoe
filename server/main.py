@@ -1,14 +1,15 @@
 import aioredis
 from loguru import logger
-from db.auth import DBAuthorizationPolicy
 from settings import config
 from api.routes import setup_routes
 from aiohttp.web import Application, run_app
-from db.database import close_pg, init_pg_pool
+from db.database import init_pg, close_pg
 from aiohttp_session import setup as setup_session
 from aiohttp_security import SessionIdentityPolicy
 from aiohttp_security import setup as setup_security
 from aiohttp_session.redis_storage import RedisStorage
+
+from server.db.auth import DBAuthorizationPolicy
 
 
 async def setup_redis(app: Application):
@@ -34,13 +35,13 @@ async def init_app() -> Application:
     app = Application()
     app["config"] = config
     setup_routes(app)
-    dp_pool = await init_pg_pool(app)
+    app.on_startup.append(init_pg)
+    engine = await init_pg(app)
     redis_pool = await setup_redis(app)
     setup_session(app, RedisStorage(redis_pool))
-    setup_security(app, SessionIdentityPolicy(), DBAuthorizationPolicy(dp_pool))
+    setup_security(app, SessionIdentityPolicy(), DBAuthorizationPolicy(engine))
     logger.debug(app["config"])
-    app.on_shutdown.append(close_pg)
-
+    app.on_cleanup.append(close_pg)
     return app
 
 

@@ -2,7 +2,8 @@ from loguru import logger
 from aiohttp import web
 from aiohttp_security import forget, remember, authorized_userid
 
-from server.db.database import create_user, get_user_by_name, validate_login_data, validate_register_data
+from server.db.database import validate_login_data, validate_register_data
+from server.models.entities import Users
 
 
 def redirect(router, route_name):
@@ -20,8 +21,8 @@ async def index(request):
     if not user:
         return web.json_response({"error": "Auth Required!"})
 
-    async with request.app["db_pool"].acquire() as conn:
-        curr_user = await get_user_by_name(conn, user)
+    async with request.app["db"].acquire() as conn:
+        curr_user = await Users.get_user_by_name(conn, user)
         prev_stats = None
         return web.json_response({"user": curr_user, "stats": prev_stats})
 
@@ -34,14 +35,14 @@ async def login(request):
     if request.method == "POST":
         user_data = await request.post()
 
-        async with request.app["db_pool"].acquire() as conn:
+        async with request.app["db"].acquire() as conn:
             error = await validate_login_data(conn, user_data)
             if error:
                 return web.json_response({"error": error})
 
             response = redirect(request.app.router, "index")
 
-            user = await get_user_by_name(conn, user_data["username"])
+            user = await Users.get_user_by_name(conn, user_data["username"])
             await remember(request, response, user["username"])
 
             raise response
@@ -57,10 +58,12 @@ async def logout(request):
 
 async def register(request):
     user_data = await request.post()
-    async with request.app["db_pool"].acquire() as conn:
+    async with request.app["db"].acquire() as conn:
         error = await validate_register_data(conn, user_data)
         if error:
             return web.json_response({"error": error})
 
-        await create_user(conn, user_data)
+        await Users.create_user(conn, user_data)
+        response = redirect(request.app.router, "index")
+        await remember(request, response, user_data["username"])
         return web.json_response({"success": f"User {user_data['username']} is created!"})
