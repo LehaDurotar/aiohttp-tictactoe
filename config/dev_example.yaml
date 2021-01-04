@@ -1,6 +1,6 @@
 postgres:
-  database: tictactoe_db
-  user: postgres
+  database: tictactoedev_db
+  user: tictac
   password: postgres
   host: localhost
   port: 5432

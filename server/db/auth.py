@@ -1,6 +1,6 @@
 from aiohttp_security.abc import AbstractAuthorizationPolicy
 
-from .database import get_user_by_name
+from server.models.entities import Users
 
 
 class DBAuthorizationPolicy(AbstractAuthorizationPolicy):
@@ -9,7 +9,7 @@ class DBAuthorizationPolicy(AbstractAuthorizationPolicy):
 
     async def authorized_userid(self, identity):
         async with self.db_pool.acquire() as conn:
-            user = await get_user_by_name(conn, identity)
+            user = await Users.get_user_by_name(conn, identity)
             if user:
                 return identity
 

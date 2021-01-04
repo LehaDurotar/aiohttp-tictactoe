@@ -1,8 +1,9 @@
 import sys
 
-sys.path.append('server')
+sys.path.append("server")
 
 import pytest
+
 from server.main import init_app
 
 

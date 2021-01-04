@@ -14,3 +14,5 @@ def get_config(path):
 
 
 config = get_config(config_path)
+db_cfg = config["postgres"]
+POSTGRES_URI = f"postgresql://{db_cfg['user']}:{db_cfg['password']}@{db_cfg['host']}:{db_cfg['port']}/{db_cfg['database']}"
