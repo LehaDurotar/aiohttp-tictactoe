@@ -16,14 +16,14 @@
 Воспользуемcя модулем python requests для тестирования сервиса, 
 однако вы можете использовать что хотите.
 
-~ requests.post("http://localhost/register", {"username": "player1", "password": "pass1"})
-~ requests.post("http://localhost/register", {"username": "player2", "password": "pass2"})
-~ requests.post("http://localhost/game", {"name": "testgame"})
-~ requests.post("http://localhost/game/testgame/player", {"player_name": "player1"})
-~ requests.post("http://localhost/game/testgame/player", {"player_name": "player2"})
-~ requests.post("http:/localhost/game/testgame/player/Player1/move", {"square": "1"})
-~ requests.post("http://localhost/game/testgame/player/Player2/move", {"square": "2"})
-~ requests.get("http://localhost/game/testgame/board")
+~ requests.post("http://0.0.0.0:8080/register"", {"username": "player1", "password": "pass1"}).json()
+~ requests.post("http://0.0.0.0:8080/register", {"username": "player2", "password": "pass2"}).json()
+~ requests.post("http://0.0.0.0:8080/game", {"name": "testgame"}).json()
+~ requests.post("http://0.0.0.0:8080/game/testgame/player", {"player_name": "player1"}).json()
+~ requests.post("http://0.0.0.0:8080/game/testgame/player", {"player_name": "player2"}).json()
+~ requests.post("http://0.0.0.0:8080/game/testgame/player/Player1/move", {"square": "1"}).json()
+~ requests.post("http://0.0.0.0:8080/game/testgame/player/Player2/move", {"square": "2"}).json()
+~ requests.get("http://0.0.0.0:8080/game/testgame/board").json()
 
 ```
 

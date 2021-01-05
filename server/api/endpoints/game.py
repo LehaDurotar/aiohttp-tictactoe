@@ -6,7 +6,7 @@ from aiohttp import web
 from psycopg2 import IntegrityError
 from aiohttp_security import authorized_userid
 
-from server.models.entities import Moves, Users, Player, GameInstance, GamePlayerStats
+from server.models.entities import Moves, Users, GameInstance, GamePlayerStats
 
 from .index import redirect
 
@@ -18,7 +18,7 @@ async def game(request):
     :return: rest response as json
     """
     if request.method == "GET":
-        async with request.app["db"].aquire() as conn:
+        async with request.app["db"].acquire() as conn:
             cursor = await conn.execute(GameInstance.select())
             records = await cursor.fetchall()
             games = str([(i[0], i[1]) for i in records])
@@ -64,10 +64,10 @@ async def add_player_to_game(request):
             async with request.app["db"].acquire() as conn:
                 # get the number of players in the game already
                 cursor = await conn.execute(
-                    GamePlayerStats.select().where(GamePlayerStats.c.game_name == game_name)
+                    GamePlayerStats.select().where(GamePlayerStats.game_name == game_name)
                 )
                 get_players = await cursor.fetchone()
-                num_players = cursor.rowcount
+                num_players = cursor.rowcount - 1
 
                 # tic tac toe can only have 2 players
                 if num_players >= 2:
@@ -267,42 +267,15 @@ async def show_game_board(request):
     return web.json_response({"success": moves_str})
 
 
-async def show_or_insert_players(request):
+async def show_players(request):
     # show all players
     if request.method == "GET":
         async with request.app["db"].acquire() as conn:
-            s = Player.select()
+            s = Users.select()
             cursor = await conn.execute(s)
             records = await cursor.fetchall()
             players = str([i[0] for i in records])
-            return web.Response(text="players are: " + players)
-
-    elif request.method == "POST":
-        data = await request.post()
-
-        try:
-            player_name = data["player_name"]
-
-        except (KeyError, TypeError, ValueError) as e:
-            logger.error(e)
-            raise web.json_response({"error": {f"{e}": "You have not requested a player correctly"}})
-
-        # check if player has been added to player table
-        # if not we'll add it
-        async with request.app["db"].acquire() as conn:
-            s = Player.select().where(Player.c.name == player_name)
-            cursor = await conn.execute(s)
-            row_count = cursor.rowcount
-
-            # add player to player table if it doesn't exist
-            if row_count == 0:
-                await conn.execute(Player.insert().values(name=player_name))
-            else:
-                raise web.json_response({"error": f"A player with name {player_name} has already been added"})
-
-            return web.json_response({"success": f"Player: {player_name} was successfully added."})
-
-    return web.json_response({})
+            return web.json_response({"success": f"players are: {players}"})
 
 
 def subset_sum(lst, target):

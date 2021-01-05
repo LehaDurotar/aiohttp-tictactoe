@@ -30,14 +30,6 @@ class Users(TimedBaseModel):
         await conn.execute(query)
 
 
-class Player(TimedBaseModel):
-    """"""
-
-    __tablename__ = "players"
-
-    name = db.Column(db.String(64), db.ForeignKey(f"{Users.__tablename__}.username", ondelete="CASCADE"))
-
-
 class GameInstance(TimedBaseModel):
     """
     Store a game session
@@ -76,7 +68,7 @@ class GamePlayerStats(TimedBaseModel):
     useful for retrieving game statistics.
     """
 
-    __tablename__ = "gamestats"
+    __tablename__ = "gameplayerstats"
 
     id = db.Column(db.Integer, primary_key=True, unique=True)
     move_type = db.Column(db.String(10), nullable=False)
