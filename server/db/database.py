@@ -1,5 +1,5 @@
 import datetime
-from typing import Dict, List, Union
+from typing import List
 
 import aiopg.sa
 from gino import Gino
@@ -47,49 +47,6 @@ async def init_pg(app):
     logger.info(f"Setup DB Connection")
     app["db"] = engine
     return engine
-
-
-async def validate_login_data(conn, data: Dict[str, str]) -> Union[str, None]:
-    """
-    Simple login data validation from POST request
-    :param conn: DB pool
-    :param data: login, pass
-    :return: Specific error or None if check passed
-    """
-    username, password = data["username"], data["password"]
-
-    if not username:
-        return "username is required"
-    if not password:
-        return "password is required"
-
-    # user = await get_user_by_name(conn, username)
-    # if not user:
-    #     return "invalid username"
-    # if not check_password_hash(password, user["password_hash"]):
-    #     return "invalid password"
-    # else:
-    #     return None
-
-
-async def validate_register_data(conn, data: Dict[str, str]) -> Union[str, None]:
-    """
-    Simple register data validation from POST request
-    :param conn: DB pool
-    :param data: login, pass
-    :return: Specific error or None if check passed
-    """
-    username, password = data["username"], data["password"]
-
-    if not username:
-        return "username is required"
-    if not password:
-        return "password is required"
-    # user = await get_user_by_name(conn, username)
-    # if user:
-    #     return "This user already exists"
-    # else:
-    #     return None
 
 
 async def close_pg(app) -> None:

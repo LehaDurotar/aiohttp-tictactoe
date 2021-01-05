@@ -1,5 +1,7 @@
+from typing import Dict, Union
+
 from server.db.database import TimedBaseModel, db
-from server.db.security import generate_password_hash
+from server.db.security import check_password_hash, generate_password_hash
 
 
 class Users(TimedBaseModel):
@@ -28,6 +30,49 @@ class Users(TimedBaseModel):
         hashed_pass = generate_password_hash(password)
         query = Users.insert().values(username=username, password_hash=hashed_pass)
         await conn.execute(query)
+
+    @classmethod
+    async def validate_login_data(cls, conn, data: Dict[str, str]) -> Union[str, None]:
+        """
+        Simple login data validation from POST request
+        :param conn: DB pool
+        :param data: login, pass
+        :return: Specific error or None if check passed
+        """
+        username, password = data["username"], data["password"]
+
+        if not username:
+            return "username is required"
+        if not password:
+            return "password is required"
+
+        user = await cls.get_user_by_name(conn, username)
+        if not user:
+            return "invalid username"
+        if not check_password_hash(password, user["password_hash"]):
+            return "invalid password"
+        else:
+            return None
+
+    @classmethod
+    async def validate_register_data(cls, conn, data: Dict[str, str]) -> Union[str, None]:
+        """
+        Simple register data validation from POST request
+        :param conn: DB pool
+        :param data: login, pass
+        :return: Specific error or None if check passed
+        """
+        username, password = data["username"], data["password"]
+
+        if not username:
+            return "username is required"
+        if not password:
+            return "password is required"
+        user = await cls.get_user_by_name(conn, username)
+        if user:
+            return "This user already exists"
+        else:
+            return None
 
 
 class GameInstance(TimedBaseModel):

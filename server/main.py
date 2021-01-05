@@ -34,12 +34,13 @@ async def init_app() -> Application:
     """
     app = Application()
     app["config"] = config
-    setup_routes(app)
+
     app.on_startup.append(init_pg)
     engine = await init_pg(app)
     redis_pool = await setup_redis(app)
     setup_session(app, RedisStorage(redis_pool))
     setup_security(app, SessionIdentityPolicy(), DBAuthorizationPolicy(engine))
+    setup_routes(app)
     logger.debug(app["config"])
     app.on_cleanup.append(close_pg)
     return app

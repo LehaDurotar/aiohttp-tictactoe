@@ -2,7 +2,6 @@ from loguru import logger
 from aiohttp import web
 from aiohttp_security import forget, remember, authorized_userid
 
-from server.db.database import validate_login_data, validate_register_data
 from server.models.entities import Users
 
 
@@ -11,59 +10,70 @@ def redirect(router, route_name):
     return web.HTTPFound(location)
 
 
-async def index(request):
+class Index(web.View):
     """
-    Main page
-    :param request:
-    :return: json info about user and his game session
+    Main view
     """
-    user = await authorized_userid(request)
-    if not user:
-        return web.json_response({"error": "Auth Required!"})
 
-    async with request.app["db"].acquire() as conn:
-        curr_user = await Users.get_user_by_name(conn, user)
-        prev_stats = None
-        return web.json_response({"user": curr_user, "stats": prev_stats})
+    async def get(self):
+        logger.info(self.request.path)
+        user = await authorized_userid(self.request)
+        if not user:
+            return web.json_response({"error": "Auth Required!"})
+        async with self.request.app["db"].acquire() as conn:
+            curr_user = await Users.get_user_by_name(conn, user)
+            prev_stats = None
+            return web.json_response({"user": curr_user, "stats": prev_stats})
 
 
-async def login(request):
-    user = await authorized_userid(request)
-    if user:
-        raise redirect(request.app.router, "index")
+class Login(web.View):
+    """"""
 
-    if request.method == "POST":
-        user_data = await request.post()
+    async def get(self):
+        logger.info(self.request.path)
+        user = await authorized_userid(self.request)
+        if user:
+            raise redirect(self.request.app.router, "index")
 
-        async with request.app["db"].acquire() as conn:
-            error = await validate_login_data(conn, user_data)
+    async def post(self):
+        logger.info(self.request.path)
+        user_data = await self.request.post()
+
+        async with self.request.app["db"].acquire() as conn:
+            error = await Users.validate_login_data(conn, user_data)
             if error:
                 return web.json_response({"error": error})
 
-            response = redirect(request.app.router, "index")
+            response = redirect(self.request.app.router, "index")
 
             user = await Users.get_user_by_name(conn, user_data["username"])
-            await remember(request, response, user["username"])
+            await remember(self.request, response, user["username"])
 
             raise response
-    else:
-        raise redirect(request.app.router, "index")
 
 
-async def logout(request):
-    response = redirect(request.app.router, "login")
-    await forget(request, response)
-    return response
+class Logout(web.View):
+    """"""
+
+    async def get(self):
+        logger.info(self.request.path)
+        response = redirect(self.request.app.router, "login")
+        await forget(self.request, response)
+        return response
 
 
-async def register(request):
-    user_data = await request.post()
-    async with request.app["db"].acquire() as conn:
-        error = await validate_register_data(conn, user_data)
-        if error:
-            return web.json_response({"error": error})
+class Register(web.View):
+    """"""
 
-        await Users.create_user(conn, user_data)
-        response = redirect(request.app.router, "index")
-        await remember(request, response, user_data["username"])
-        return web.json_response({"success": f"User {user_data['username']} is created!"})
+    async def post(self):
+        logger.info(self.request.path)
+        user_data = await self.request.post()
+        async with self.request.app["db"].acquire() as conn:
+            error = await Users.validate_register_data(conn, user_data)
+            if error:
+                return web.json_response({"error": error})
+
+            await Users.create_user(conn, user_data)
+            response = redirect(self.request.app.router, "index")
+            await remember(self.request, response, user_data["username"])
+            return web.json_response({"success": f"User {user_data['username']} is created!"})

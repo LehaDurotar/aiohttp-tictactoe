@@ -11,25 +11,24 @@ from server.models.entities import Moves, Users, GameInstance, GamePlayerStats
 from .index import redirect
 
 
-async def game(request):
+class Game(web.View):
     """
     Shows created games or create a new game into the game table
-    :param request: GET or POST request
-    :return: rest response as json
     """
-    if request.method == "GET":
-        async with request.app["db"].acquire() as conn:
+
+    async def get(self):
+        async with self.request.app["db"].acquire() as conn:
             cursor = await conn.execute(GameInstance.select())
             records = await cursor.fetchall()
             games = str([(i[0], i[1]) for i in records])
             logger.info(games)
             return web.json_response({"games": games})
 
-    if request.method == "POST":
-        data = await request.post()
+    async def post(self):
+        data = await self.request.post()
         game_name = data["name"]
         try:
-            async with request.app["db"].acquire() as conn:
+            async with self.request.app["db"].acquire() as conn:
                 await conn.execute(GameInstance.insert().values(name=game_name, status="NEW"))
         except (KeyError, TypeError, ValueError) as err:
             raise web.json_response({"error": {f"{err}": "You have not specified a game name"}})
@@ -40,28 +39,26 @@ async def game(request):
 
 
 # /game/{game_name}/player
-async def add_player_to_game(request):
-    try:
+class AddPlayerToGame(web.View):
 
-        game_name = request.match_info["game_name"]
+    # the GET request retrieves all players for the game_name
+    async def get(self):
+        # select all the players in game_name
+        game_name = self.request.match_info["game_name"]
+        s = GamePlayerStats.select().where(Users.c.name == game_name)
+        async with self.request.app["db"].acquire() as conn:
+            cursor = await conn.execute(s)
+            records = cursor.fetchall()
+            raise web.json_response({"info": "players in game are: "})
 
-        # the GET request retrieves all players for the game_name
-        if request.method == "GET":
+    # the POST request inserts a new player for the game_name
+    async def post(self):
 
-            # select all the players in game_name
-            s = GamePlayerStats.select().where(Users.c.name == game_name)
-            async with request.app["db"].acquire() as conn:
-                cursor = await conn.execute(s)
-                records = cursor.fetchall()
-                raise web.json_response({"info": "players in game are: "})
-
-        # the POST request inserts a new player for the game_name
-        elif request.method == "POST":
-
-            data = await request.post()
-            player_name = data["player_name"]
-
-            async with request.app["db"].acquire() as conn:
+        data = await self.request.post()
+        game_name = data["game_name"]
+        player_name = data["player_name"]
+        try:
+            async with self.request.app["db"].acquire() as conn:
                 # get the number of players in the game already
                 cursor = await conn.execute(
                     GamePlayerStats.select().where(GamePlayerStats.game_name == game_name)
@@ -117,26 +114,24 @@ async def add_player_to_game(request):
                 return web.json_response(
                     {
                         "success": {
-                            "new player": f"New player: {player_name} has been added to game: {game_name} and is using {move_type}"
+                            "new player": f"New player: {player_name} has been added to game: {game_name} and is using {move_type} "
                         }
                     }
                 )
 
-    except (KeyError, TypeError, ValueError) as e:
-        logger.error(e)
-        raise web.json_response({"error": {f"{e}": "You have not specified a game or player name"}})
+        except (KeyError, TypeError, ValueError) as e:
+            logger.error(e)
+            return web.json_response({"error": {f"{e}": "You have not specified a game or player name"}})
 
-    except IntegrityError as e:
-        logger.error(e)
-        raise web.json_response(
-            {"error": {f"{e}": "The game does not exist or the player POST data is incorrect"}}
-        )
-
-    return web.json_response({"error": "Wrong request type"})
+        except IntegrityError as e:
+            logger.error(e)
+            return web.json_response(
+                {"error": {f"{e}": "The game does not exist or the player POST data is incorrect"}}
+            )
 
 
 # /game/{game_name}/player/{player_name}/move
-async def make_move(request):
+class MakeMove(web.View):
     """
     Algorithm for finding winner assigns numbers to each square
     so that all rows diagonals etc add to 15, if same X or O in any of
@@ -147,130 +142,139 @@ async def make_move(request):
     at that index is the square used for calculating the winner
     """
 
-    square_list = [4, 3, 8, 9, 5, 1, 2, 7, 6]
-    game_name = request.match_info["game_name"]
-    player_name = request.match_info["player_name"]
+    async def post(self):
+        square_list = [4, 3, 8, 9, 5, 1, 2, 7, 6]
+        game_name = self.request.match_info["game_name"]
+        player_name = self.request.match_info["player_name"]
 
-    data = await request.post()
+        data = await self.request.post()
 
-    try:
-        move_square = data["square"]
+        try:
+            move_square = data["square"]
 
-    except (KeyError, TypeError, ValueError) as e:
-        logger.error(e)
-        raise web.json_response({"error": {f"{e}": "You have not requested a square correctly"}})
+        except (KeyError, TypeError, ValueError) as e:
+            logger.error(e)
+            raise web.json_response({"error": {f"{e}": "You have not requested a square correctly"}})
 
-    # next two if statements make sure square value is valid
-    if not isinstance(move_square, int):
-        raise web.json_response({"error": "square must be a number"})
+        # next two if statements make sure square value is valid
+        if not isinstance(move_square, int):
+            raise web.json_response({"error": "square must be a number"})
 
-    move_square = int(move_square)
+        move_square = int(move_square)
 
-    if move_square < 1 or move_square > 9:
-        raise web.json_response({"error": "square must be between 1 and 9"})
+        if move_square < 1 or move_square > 9:
+            raise web.json_response({"error": "square must be between 1 and 9"})
 
-    async with request.app["db"].acquire() as conn:
-        # game must be IN PROGRESS
-        # this is initially set in the add_player_to_game view
-        cursor = await conn.execute(GameInstance.select().where(GameInstance.c.name == game_name))
+        async with self.request.app["db"].acquire() as conn:
+            # game must be IN PROGRESS
+            # this is initially set in the add_player_to_game view
+            cursor = await conn.execute(GameInstance.select().where(GameInstance.c.name == game_name))
 
-        result = await cursor.fetchone()
-        game_status = result["status"]
-        next_turn = result["next_turn"]
+            result = await cursor.fetchone()
+            game_status = result["status"]
+            next_turn = result["next_turn"]
 
-        if game_status != "IN PROGRESS":
-            raise web.json_response({"error": "To make a move the game must be in progress"})
+            if game_status != "IN PROGRESS":
+                raise web.json_response({"error": "To make a move the game must be in progress"})
 
-        # the player must be playing in this game
-        cursor = await conn.execute(GamePlayerStats.select().where(GamePlayerStats.c.game_name == game_name))
-        current_game = await cursor.fetchall()
-        move_type = [i[1] for i in current_game if i[3] == player_name][0]
-        participants = [i[3] for i in current_game]
-
-        if not (player_name in participants):
-            raise web.json_response({"error": {f"{player_name}": "Player is not playing this game"}})
-
-        # check if it's this players turn
-        if next_turn != player_name:
-            raise web.json_response({"error": "It is not this players turn"})
-
-        # cant move to same square twice
-        cursor = await conn.execute(Moves.select().where(Moves.c.game_name == game_name))
-
-        all_moves = await cursor.fetchall()
-        all_squares = [i[1] for i in all_moves]
-
-        if move_square in all_squares:
-            raise web.json_response({"error": f"Square {move_square} has already been used"})
-
-        # insert the new move
-        await conn.execute(
-            Moves.insert().values(
-                square=move_square, move_type=move_type, game_name=game_name, player_name=player_name
+            # the player must be playing in this game
+            cursor = await conn.execute(
+                GamePlayerStats.select().where(GamePlayerStats.c.game_name == game_name)
             )
-        )
+            current_game = await cursor.fetchall()
+            move_type = [i[1] for i in current_game if i[3] == player_name][0]
+            participants = [i[3] for i in current_game]
 
-        # determine if there is a winner or all squares are filled
-        # this gets all moves by the current player
-        player_squares_list = [i[1] for i in all_moves if i[4] == player_name]
-        # add current move to the list
-        player_squares_list.append(move_square)
-        squares_for_sum = [square_list[i - 1] for i in player_squares_list]
-        # check if a combination of squares add to 15
-        winner = subset_sum(squares_for_sum, 15)
+            if not (player_name in participants):
+                raise web.json_response({"error": {f"{player_name}": "Player is not playing this game"}})
 
-        # update game status to FINISHED
-        if winner:
+            # check if it's this players turn
+            if next_turn != player_name:
+                raise web.json_response({"error": "It is not this players turn"})
+
+            # cant move to same square twice
+            cursor = await conn.execute(Moves.select().where(Moves.c.game_name == game_name))
+
+            all_moves = await cursor.fetchall()
+            all_squares = [i[1] for i in all_moves]
+
+            if move_square in all_squares:
+                raise web.json_response({"error": f"Square {move_square} has already been used"})
+
+            # insert the new move
             await conn.execute(
-                GameInstance.update().where(GameInstance.c.name == game_name).values(status="FINISHED")
+                Moves.insert().values(
+                    square=move_square, move_type=move_type, game_name=game_name, player_name=player_name
+                )
             )
-            return web.json_response({"success": {f"{player_name}": "Congratulations You won the game."}})
 
-        # check if all squares have been filled
-        # update status to FINISHED - NO WINNER
-        if len(all_moves) + 1 == 9:
+            # determine if there is a winner or all squares are filled
+            # this gets all moves by the current player
+            player_squares_list = [i[1] for i in all_moves if i[4] == player_name]
+            # add current move to the list
+            player_squares_list.append(move_square)
+            squares_for_sum = [square_list[i - 1] for i in player_squares_list]
+            # check if a combination of squares add to 15
+            winner = subset_sum(squares_for_sum, 15)
+
+            # update game status to FINISHED
+            if winner:
+                await conn.execute(
+                    GameInstance.update().where(GameInstance.c.name == game_name).values(status="FINISHED")
+                )
+                return web.json_response({"success": {f"{player_name}": "Congratulations You won the game."}})
+
+            # check if all squares have been filled
+            # update status to FINISHED - NO WINNER
+            if len(all_moves) + 1 == 9:
+                await conn.execute(
+                    GameInstance.update()
+                    .where(GameInstance.c.name == game_name)
+                    .values(status="FINISHED - NO WINNER")
+                )
+                return web.json_response({"success": "Game Over: No Winner, all squares filled"})
+
+            # if no winner and game is still going update whose turn it is
+            next_player = [i for i in participants if i != player_name][0]
+
             await conn.execute(
-                GameInstance.update()
-                .where(GameInstance.c.name == game_name)
-                .values(status="FINISHED - NO WINNER")
+                GameInstance.update().where(GameInstance.c.name == game_name).values(next_turn=next_player)
             )
-            return web.json_response({"success": "Game Over: No Winner, all squares filled"})
 
-        # if no winner and game is still going update whose turn it is
-        next_player = [i for i in participants if i != player_name][0]
-
-        await conn.execute(
-            GameInstance.update().where(GameInstance.c.name == game_name).values(next_turn=next_player)
-        )
-
-    return web.json_response({f"{player_name}": f"moved an {move_type} to square {move_square}"})
+        return web.json_response({f"{player_name}": f"moved an {move_type} to square {move_square}"})
 
 
 # /game/{game_name}/show
-async def show_game_board(request):
-    game_name = request.match_info["game_name"]
+class ShowGameBoard(web.View):
+    """"""
 
-    async with request.app["db"].acquire() as conn:
-        cursor = await conn.execute(Moves.select().where(Moves.c.game_name == game_name))
-        all_moves = await cursor.fetchall()
+    async def get(self):
+        game_name = self.request.match_info["game_name"]
 
-        moves_dict = {i[1]: i[2] for i in all_moves}
-        moves_str = "\n"
-        for i in range(1, 10):
-            if i in moves_dict:
-                moves_str += moves_dict[i] + " "
-            else:
-                moves_str += "  "
-            if i % 3 == 0:
-                moves_str += "\n"
+        async with self.request.app["db"].acquire() as conn:
+            cursor = await conn.execute(Moves.select().where(Moves.c.game_name == game_name))
+            all_moves = await cursor.fetchall()
 
-    return web.json_response({"success": moves_str})
+            moves_dict = {i[1]: i[2] for i in all_moves}
+            moves_str = "\n"
+            for i in range(1, 10):
+                if i in moves_dict:
+                    moves_str += moves_dict[i] + " "
+                else:
+                    moves_str += "  "
+                if i % 3 == 0:
+                    moves_str += "\n"
+
+        return web.json_response({"success": moves_str})
 
 
-async def show_players(request):
-    # show all players
-    if request.method == "GET":
-        async with request.app["db"].acquire() as conn:
+class ShowPlayers(web.View):
+    """
+    Show all players
+    """
+
+    async def get(self):
+        async with self.request.app["db"].acquire() as conn:
             s = Users.select()
             cursor = await conn.execute(s)
             records = await cursor.fetchall()

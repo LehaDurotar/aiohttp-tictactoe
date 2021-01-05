@@ -1,15 +1,25 @@
 from aiohttp import web
 
-from .endpoints.game import game, make_move, show_game_board, add_player_to_game, show_players
-from .endpoints.index import index, register
+from .endpoints.game import Game, MakeMove, ShowPlayers, ShowGameBoard, AddPlayerToGame
+from .endpoints.index import Index, Register
+
+register_api = web.Application()
+game_api = web.Application()
 
 
-def setup_routes(app):
-    app.router.add_get("/", index, name="index")
-    app.router.add_post("/register", register, name="register")
-    app.router.add_get("/game", game, name="start_game")
-    app.router.add_post("/game", game, name="start_game")
-    app.router.add_view("/game/{game_name}/player", add_player_to_game, name="add_player_to_game")
-    app.router.add_post("/game/{game_name}/player/{player_name}/move", make_move, name="make_move")
-    app.router.add_get("/game/{game_name}/board", show_game_board, name="show_game_board")
-    app.router.add_view("/players", show_players, name="show_players")
+def setup_routes(app: web.Application):
+    app.router.add_view("/", Index, name="index")
+
+    register_api.router.add_view("/", Register, name="register")
+
+    game_api.router.add_view("/", Game, name="game")
+    game_api.router.add_view("/{game_name}/player", AddPlayerToGame, name="add_player_to_game")
+    game_api.router.add_view("/{game_name}/player/{player_name}/move", MakeMove, name="make_move")
+    game_api.router.add_view("/{game_name}/board", ShowGameBoard, name="show_game_board")
+    game_api.router.add_view("/players", ShowPlayers, name="show_players")
+
+    app.add_subapp("/register/", register_api)
+    app.add_subapp("/game/", game_api)
+
+    register_api["db"] = app["db"]
+    game_api["db"] = app["db"]
