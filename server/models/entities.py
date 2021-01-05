@@ -18,8 +18,9 @@ class Users(TimedBaseModel):
 
     @staticmethod
     async def get_user_by_name(conn, username: str):
-        result = await conn.fetchrow(Users.select().where(Users.c.username == username))
-        return result
+        query = await conn.execute(Users.query.where(Users.username == username))
+        user_name = await query.fetchone()
+        return user_name
 
     @staticmethod
     async def create_user(conn, user_data: dict) -> None:

@@ -17,14 +17,16 @@ class Game(web.View):
     """
 
     async def get(self):
+        logger.info(self.request.path)
         async with self.request.app["db"].acquire() as conn:
-            cursor = await conn.execute(GameInstance.select())
+            cursor = await conn.execute(GameInstance.query)
             records = await cursor.fetchall()
             games = str([(i[0], i[1]) for i in records])
             logger.info(games)
             return web.json_response({"games": games})
 
     async def post(self):
+        logger.info(self.request.path)
         data = await self.request.post()
         game_name = data["name"]
         try:
@@ -44,27 +46,27 @@ class AddPlayerToGame(web.View):
     # the GET request retrieves all players for the game_name
     async def get(self):
         # select all the players in game_name
+        logger.info(self.request.path)
         game_name = self.request.match_info["game_name"]
-        s = GamePlayerStats.select().where(Users.c.name == game_name)
+        s = GamePlayerStats.query.where(Users.name == game_name)
         async with self.request.app["db"].acquire() as conn:
             cursor = await conn.execute(s)
             records = cursor.fetchall()
-            raise web.json_response({"info": "players in game are: "})
+            raise web.json_response({"info": f"players in game are: {records}"})
 
-    # the POST request inserts a new player for the game_name
     async def post(self):
-
-        data = await self.request.post()
-        game_name = data["game_name"]
-        player_name = data["player_name"]
+        # the POST request inserts a new player for the game_name
+        logger.info(self.request.path)
+        game_name = self.request.match_info["game_name"]
+        player_name = ""
         try:
             async with self.request.app["db"].acquire() as conn:
                 # get the number of players in the game already
                 cursor = await conn.execute(
-                    GamePlayerStats.select().where(GamePlayerStats.game_name == game_name)
+                    GamePlayerStats.query.where(GamePlayerStats.game_name == game_name)
                 )
-                get_players = await cursor.fetchone()
-                num_players = cursor.rowcount - 1
+                get_players = await cursor.fetchall()
+                num_players = cursor.rowcount
 
                 # tic tac toe can only have 2 players
                 if num_players >= 2:
@@ -83,7 +85,7 @@ class AddPlayerToGame(web.View):
                     # their turn
                     await conn.execute(
                         GameInstance.update()
-                        .where(GameInstance.c.name == game_name)
+                        .where(GameInstance.name == game_name)
                         .values(next_turn=player_name)
                     )
                 # if we're here num_players must be 1
@@ -107,7 +109,7 @@ class AddPlayerToGame(web.View):
                         # can start making moves.
                         await conn.execute(
                             GameInstance.update()
-                            .where(GameInstance.c.name == game_name)
+                            .where(GameInstance.name == game_name)
                             .values(status="IN PROGRESS")
                         )
 
@@ -143,6 +145,7 @@ class MakeMove(web.View):
     """
 
     async def post(self):
+        logger.info(self.request.path)
         square_list = [4, 3, 8, 9, 5, 1, 2, 7, 6]
         game_name = self.request.match_info["game_name"]
         player_name = self.request.match_info["player_name"]
@@ -168,7 +171,7 @@ class MakeMove(web.View):
         async with self.request.app["db"].acquire() as conn:
             # game must be IN PROGRESS
             # this is initially set in the add_player_to_game view
-            cursor = await conn.execute(GameInstance.select().where(GameInstance.c.name == game_name))
+            cursor = await conn.execute(GameInstance.query.where(GameInstance.name == game_name))
 
             result = await cursor.fetchone()
             game_status = result["status"]
@@ -178,9 +181,7 @@ class MakeMove(web.View):
                 raise web.json_response({"error": "To make a move the game must be in progress"})
 
             # the player must be playing in this game
-            cursor = await conn.execute(
-                GamePlayerStats.select().where(GamePlayerStats.c.game_name == game_name)
-            )
+            cursor = await conn.execute(GamePlayerStats.query.where(GamePlayerStats.game_name == game_name))
             current_game = await cursor.fetchall()
             move_type = [i[1] for i in current_game if i[3] == player_name][0]
             participants = [i[3] for i in current_game]
@@ -193,7 +194,7 @@ class MakeMove(web.View):
                 raise web.json_response({"error": "It is not this players turn"})
 
             # cant move to same square twice
-            cursor = await conn.execute(Moves.select().where(Moves.c.game_name == game_name))
+            cursor = await conn.execute(Moves.query.where(Moves.game_name == game_name))
 
             all_moves = await cursor.fetchall()
             all_squares = [i[1] for i in all_moves]
@@ -220,7 +221,7 @@ class MakeMove(web.View):
             # update game status to FINISHED
             if winner:
                 await conn.execute(
-                    GameInstance.update().where(GameInstance.c.name == game_name).values(status="FINISHED")
+                    GameInstance.update().where(GameInstance.name == game_name).values(status="FINISHED")
                 )
                 return web.json_response({"success": {f"{player_name}": "Congratulations You won the game."}})
 
@@ -229,7 +230,7 @@ class MakeMove(web.View):
             if len(all_moves) + 1 == 9:
                 await conn.execute(
                     GameInstance.update()
-                    .where(GameInstance.c.name == game_name)
+                    .where(GameInstance.name == game_name)
                     .values(status="FINISHED - NO WINNER")
                 )
                 return web.json_response({"success": "Game Over: No Winner, all squares filled"})
@@ -238,7 +239,7 @@ class MakeMove(web.View):
             next_player = [i for i in participants if i != player_name][0]
 
             await conn.execute(
-                GameInstance.update().where(GameInstance.c.name == game_name).values(next_turn=next_player)
+                GameInstance.update().where(GameInstance.name == game_name).values(next_turn=next_player)
             )
 
         return web.json_response({f"{player_name}": f"moved an {move_type} to square {move_square}"})
@@ -249,10 +250,11 @@ class ShowGameBoard(web.View):
     """"""
 
     async def get(self):
+        logger.info(self.request.path)
         game_name = self.request.match_info["game_name"]
 
         async with self.request.app["db"].acquire() as conn:
-            cursor = await conn.execute(Moves.select().where(Moves.c.game_name == game_name))
+            cursor = await conn.execute(Moves.query.where(Moves.game_name == game_name))
             all_moves = await cursor.fetchall()
 
             moves_dict = {i[1]: i[2] for i in all_moves}
@@ -274,11 +276,12 @@ class ShowPlayers(web.View):
     """
 
     async def get(self):
+        logger.info(self.request.path)
         async with self.request.app["db"].acquire() as conn:
-            s = Users.select()
+            s = Users.query
             cursor = await conn.execute(s)
             records = await cursor.fetchall()
-            players = str([i[0] for i in records])
+            players = [i[1] for i in records]
             return web.json_response({"success": f"players are: {players}"})
 
 

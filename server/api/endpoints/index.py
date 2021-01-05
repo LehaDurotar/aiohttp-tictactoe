@@ -44,7 +44,8 @@ class Login(web.View):
             if error:
                 return web.json_response({"error": error})
 
-            response = redirect(self.request.app.router, "index")
+            # response = redirect(self.request.app.router, "index")
+            response = web.HTTPFound("/")
 
             user = await Users.get_user_by_name(conn, user_data["username"])
             await remember(self.request, response, user["username"])
