@@ -30,6 +30,14 @@ class Users(TimedBaseModel):
         await conn.execute(query)
 
 
+class Player(TimedBaseModel):
+    """"""
+
+    __tablename__ = "players"
+
+    name = db.Column(db.String(64), db.ForeignKey(f"{Users.__tablename__}.username", ondelete="CASCADE"))
+
+
 class GameInstance(TimedBaseModel):
     """
     Store a game session
@@ -61,7 +69,7 @@ class Moves(TimedBaseModel):
     )
 
 
-class GameStats(TimedBaseModel):
+class GamePlayerStats(TimedBaseModel):
     """
     History of all games and the players tied to those games.
     Will store current score for each player in the game.
