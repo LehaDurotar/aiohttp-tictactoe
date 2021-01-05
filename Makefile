@@ -1,13 +1,16 @@
 start:
-	poetry run python server/main.py
+	PYTHONPATH=$(shell pwd):${PYTHONPATH} poetry run python server/main.py
 
 refactor:
 	poetry run black ./
 	poetry run isort ./
+
+migrate:
+	PYTHONPATH=$(shell pwd):${PYTHONPATH} poetry run alembic upgrade head
 
 lint:
 	poetry run black --check ./
 	poetry run isort --check-only ./
 
 tests:
-	poetry run python -m pytest -v --disable-warnings
+	PYTHONPATH=$(shell pwd):${PYTHONPATH} poetry run python -m pytest -v --disable-warnings

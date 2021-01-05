@@ -1,0 +1,28 @@
+version: '3'
+services:
+
+  postgres:
+    image: postgres:11
+    ports:
+    - "5432:5432"
+    environment:
+      POSTGRES_USER: tictac
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: tictactoedev_db
+
+  redis:
+    image: redis:latest
+
+  tictactoe_server:
+    depends_on:
+      - postgres
+      - redis
+    build:
+      context: .
+      dockerfile: dev.Dockerfile
+    restart: always
+    command: bash -c "make migrate && make start"
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app

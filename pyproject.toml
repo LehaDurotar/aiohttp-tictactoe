@@ -52,6 +52,7 @@ exclude = '''
     | build
     | dist
     | alembic
+    | data
   )/
 )
 '''
