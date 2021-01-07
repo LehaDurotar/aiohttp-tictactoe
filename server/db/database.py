@@ -4,7 +4,6 @@ from typing import List
 import aiopg.sa
 from gino import Gino
 from loguru import logger
-from aioredis import create_pool
 from sqlalchemy import Table, Column, inspect
 
 from server.settings import POSTGRES_URI
@@ -38,9 +37,9 @@ class TimedBaseModel(BaseModel):
     )
 
 
-async def init_pg(app):
+async def init_or_get_pg(app):
     """
-    :return: Connect to Postgres
+    Connect to Postgres or get live instance
     """
     if "db" in app:
         return app["db"]
@@ -57,22 +56,3 @@ async def close_pg(app) -> None:
     app["db"].close()
     await app["db"].wait_closed()
     logger.info("DB connection is closed")
-
-
-async def setup_redis(app):
-    """
-    Create session storage with redis
-    """
-    logger.info("Setup redis pool")
-    cfg = app["config"]["redis"]
-    pool = await create_pool((cfg["REDIS_HOST"], cfg["REDIS_PORT"]))
-
-    async def close_redis(app):
-        pool.close()
-        await pool.wait_closed()
-        logger.info("Redis connection is closed")
-
-    app.on_cleanup.append(close_redis)
-    app["redis_pool"] = pool
-    logger.info(app["redis_pool"])
-    return pool

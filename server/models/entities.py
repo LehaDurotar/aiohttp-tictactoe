@@ -4,32 +4,49 @@ from server.db.database import BaseModel, db
 from server.db.security import check_password_hash, generate_password_hash
 
 
-class Users(BaseModel):
+class User(BaseModel):
     """
-    # Base users model
+    Base user model
+    Authorized user can create game sessions
     """
 
-    __tablename__ = "users"
+    __tablename__ = "user"
 
     id = db.Column(db.Integer, primary_key=True, nullable=False, unique=True)
     username = db.Column(db.String(64), nullable=False, unique=True)
     password_hash = db.Column(db.String(128), nullable=False, unique=True)
     disabled = db.Column(db.Boolean, nullable=False, default=True)
 
-    @staticmethod
-    async def get_user_by_name(conn, username: str):
-        query = await conn.execute(Users.query.where(Users.username == username))
-        user_name = await query.fetchone()
-        return user_name
+    @classmethod
+    async def get_user(cls, conn):
+        query = await conn.execute(User.query)
+        user = await query.fetchone()
+        return user
+
+    @classmethod
+    async def is_authorized(cls, conn) -> bool:
+        user = await cls.get_user(conn)
+        if user["disabled"]:
+            return True
+        return False
+
+    @classmethod
+    async def remember(cls, conn) -> None:
+        user = await cls.get_user(conn)
+        query = User.update.values(username=user["username"], disabled=False)
+        await conn.execute(query)
+
+    @classmethod
+    async def forget(cls, conn) -> None:
+        user = await cls.get_user(conn)
+        query = User.update.values(username=user["username"], disabled=True)
+        await conn.execute(query)
 
     @staticmethod
     async def create_user(conn, user_data: dict) -> None:
-        """
-        Create new record in DB
-        """
         username, password = user_data["username"], user_data["password"]
         hashed_pass = generate_password_hash(password)
-        query = Users.insert().values(username=username, password_hash=hashed_pass)
+        query = User.insert().values(username=username, password_hash=hashed_pass)
         await conn.execute(query)
 
     @classmethod
@@ -47,7 +64,7 @@ class Users(BaseModel):
         if not password:
             return "password is required"
 
-        user = await cls.get_user_by_name(conn, username)
+        user = await cls.get_user(conn)
         if not user:
             return "invalid username"
         if not check_password_hash(password, user["password_hash"]):
@@ -66,23 +83,34 @@ class Users(BaseModel):
         username, password = data["username"], data["password"]
 
         if not username:
-            return "username is required"
+            return {"error": "username is required"}
         if not password:
-            return "password is required"
-        user = await cls.get_user_by_name(conn, username)
+            return {"error": "password is required"}
+        user = await cls.get_user(conn)
         if user:
-            return "This user already exists"
+            return {"error": "This user already exists"}
         else:
             return None
 
 
 class Players(BaseModel):
-    """"""
+    """
+    Players can register in game sessions, make moves and record results
+    The game can be played by 2 players
+    One of them is controlled by a computer
+    """
 
     __tablename__ = "players"
 
     name = db.Column(db.String(64), primary_key=True)
-    player_id = db.Column(db.Integer, db.ForeignKey(f"{Users.__tablename__}.id", ondelete="CASCADE"))
+    player_id = db.Column(db.Integer, db.ForeignKey(f"{User.__tablename__}.id", ondelete="CASCADE"))
+    is_computer = db.Column(db.Boolean, default=False)
+
+    @staticmethod
+    async def get_player_by_name(conn, name: str):
+        query = await conn.execute(Players.query.where(Players.name == name))
+        user = await query.fetchone()
+        return user
 
 
 class GameInstance(BaseModel):
