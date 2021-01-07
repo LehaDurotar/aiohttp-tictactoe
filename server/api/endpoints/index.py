@@ -1,13 +1,8 @@
 from loguru import logger
 from aiohttp import web
-from aiohttp_security import forget, remember, authorized_userid
+from aiohttp_session import get_session, new_session
 
 from server.models.entities import Users
-
-
-def redirect(router, route_name):
-    location = router[route_name].url_for()
-    return web.HTTPFound(location)
 
 
 class Index(web.View):
@@ -17,13 +12,15 @@ class Index(web.View):
 
     async def get(self):
         logger.info(self.request.path)
-        user = await authorized_userid(self.request)
-        if not user:
+        session = await get_session(self.request)
+        if "username" not in session:
             return web.json_response({"error": "Auth Required!"})
-        async with self.request.app["db"].acquire() as conn:
-            curr_user = await Users.get_user_by_name(conn, user)
-            prev_stats = None
-            return web.json_response({"user": curr_user, "stats": prev_stats})
+        else:
+            user = session["username"]
+            async with self.request.app["db"].acquire() as conn:
+                # curr_user = await Users.get_user_by_name(conn, user)
+                stats = ""
+                return web.json_response({"success": {user: stats}})
 
 
 class Login(web.View):
@@ -31,26 +28,24 @@ class Login(web.View):
 
     async def get(self):
         logger.info(self.request.path)
-        user = await authorized_userid(self.request)
+        session = await get_session(self.request)
+        user = session["username"]
         if user:
-            raise redirect(self.request.app.router, "index")
+            raise web.HTTPFound("/auth/")
 
     async def post(self):
         logger.info(self.request.path)
+        session = await new_session(self.request)
         user_data = await self.request.post()
 
         async with self.request.app["db"].acquire() as conn:
             error = await Users.validate_login_data(conn, user_data)
             if error:
                 return web.json_response({"error": error})
+            else:
+                session["username"] = user_data["username"]
 
-            # response = redirect(self.request.app.router, "index")
-            response = web.HTTPFound("/")
-
-            user = await Users.get_user_by_name(conn, user_data["username"])
-            await remember(self.request, response, user["username"])
-
-            raise response
+            return web.HTTPFound("/auth/login")
 
 
 class Logout(web.View):
@@ -58,16 +53,17 @@ class Logout(web.View):
 
     async def get(self):
         logger.info(self.request.path)
-        response = redirect(self.request.app.router, "login")
-        await forget(self.request, response)
-        return response
+        session = await get_session(self.request)
+        session["username"] = None
+        return web.json_response({"success": "logout"})
 
 
-class Register(web.View):
+class Signup(web.View):
     """"""
 
     async def post(self):
         logger.info(self.request.path)
+        # session = await get_session(self.request)
         user_data = await self.request.post()
         async with self.request.app["db"].acquire() as conn:
             error = await Users.validate_register_data(conn, user_data)
@@ -75,6 +71,5 @@ class Register(web.View):
                 return web.json_response({"error": error})
 
             await Users.create_user(conn, user_data)
-            response = redirect(self.request.app.router, "index")
-            await remember(self.request, response, user_data["username"])
+            # session["username"] = user_data["username"]
             return web.json_response({"success": f"User {user_data['username']} is created!"})

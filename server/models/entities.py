@@ -1,20 +1,20 @@
 from typing import Dict, Union
 
-from server.db.database import TimedBaseModel, db
+from server.db.database import BaseModel, db
 from server.db.security import check_password_hash, generate_password_hash
 
 
-class Users(TimedBaseModel):
+class Users(BaseModel):
     """
     # Base users model
     """
 
     __tablename__ = "users"
 
-    id = db.Column(db.Integer, primary_key=True, unique=True, index=True)
+    id = db.Column(db.Integer, primary_key=True, nullable=False, unique=True)
     username = db.Column(db.String(64), nullable=False, unique=True)
     password_hash = db.Column(db.String(128), nullable=False, unique=True)
-    is_admin = db.Column(db.Boolean, default=False)
+    disabled = db.Column(db.Boolean, nullable=False, default=True)
 
     @staticmethod
     async def get_user_by_name(conn, username: str):
@@ -76,19 +76,28 @@ class Users(TimedBaseModel):
             return None
 
 
-class GameInstance(TimedBaseModel):
+class Players(BaseModel):
+    """"""
+
+    __tablename__ = "players"
+
+    name = db.Column(db.String(64), primary_key=True)
+    player_id = db.Column(db.Integer, db.ForeignKey(f"{Users.__tablename__}.id", ondelete="CASCADE"))
+
+
+class GameInstance(BaseModel):
     """
     Store a game session
     """
 
     __tablename__ = "gameinstance"
 
-    name = db.Column(db.String(64), primary_key=True, unique=True)
+    name = db.Column(db.String(64), primary_key=True)
     status = db.Column(db.String(64))
     next_turn = db.Column(db.String(64))
 
 
-class Moves(TimedBaseModel):
+class Moves(BaseModel):
     """
     Store a history of all moves in all games here,
     each row has a gameid, a playerid, squarenum, and typeo
@@ -96,18 +105,16 @@ class Moves(TimedBaseModel):
 
     __tablename__ = "moves"
 
-    id = db.Column(db.Integer, primary_key=True, unique=True)
+    id = db.Column(db.Integer, primary_key=True)
     square = db.Column(db.Integer)
     move_type = db.Column(db.String(10))
     game_name = db.Column(
         db.String(64), db.ForeignKey(f"{GameInstance.__tablename__}.name", ondelete="CASCADE")
     )
-    player_name = db.Column(
-        db.String(64), db.ForeignKey(f"{Users.__tablename__}.username", ondelete="CASCADE")
-    )
+    player_name = db.Column(db.String(64), db.ForeignKey(f"{Players.__tablename__}.name", ondelete="CASCADE"))
 
 
-class GamePlayerStats(TimedBaseModel):
+class GamePlayerStats(BaseModel):
     """
     History of all games and the players tied to those games.
     Will store current score for each player in the game.
@@ -116,11 +123,9 @@ class GamePlayerStats(TimedBaseModel):
 
     __tablename__ = "gameplayerstats"
 
-    id = db.Column(db.Integer, primary_key=True, unique=True)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     move_type = db.Column(db.String(10), nullable=False)
     game_name = db.Column(
         db.String(64), db.ForeignKey(f"{GameInstance.__tablename__}.name", ondelete="CASCADE")
     )
-    player_name = db.Column(
-        db.String(64), db.ForeignKey(f"{Users.__tablename__}.username", ondelete="CASCADE")
-    )
+    player_name = db.Column(db.String(64), db.ForeignKey(f"{Players.__tablename__}.name", ondelete="CASCADE"))

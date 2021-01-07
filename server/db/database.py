@@ -4,6 +4,7 @@ from typing import List
 import aiopg.sa
 from gino import Gino
 from loguru import logger
+from aioredis import create_pool
 from sqlalchemy import Table, Column, inspect
 
 from server.settings import POSTGRES_URI
@@ -44,7 +45,7 @@ async def init_pg(app):
     if "db" in app:
         return app["db"]
     engine = await aiopg.sa.create_engine(dsn=POSTGRES_URI)
-    logger.info(f"Setup DB Connection")
+    logger.info("Setup DB Connection")
     app["db"] = engine
     return engine
 
@@ -56,3 +57,22 @@ async def close_pg(app) -> None:
     app["db"].close()
     await app["db"].wait_closed()
     logger.info("DB connection is closed")
+
+
+async def setup_redis(app):
+    """
+    Create session storage with redis
+    """
+    logger.info("Setup redis pool")
+    cfg = app["config"]["redis"]
+    pool = await create_pool((cfg["REDIS_HOST"], cfg["REDIS_PORT"]))
+
+    async def close_redis(app):
+        pool.close()
+        await pool.wait_closed()
+        logger.info("Redis connection is closed")
+
+    app.on_cleanup.append(close_redis)
+    app["redis_pool"] = pool
+    logger.info(app["redis_pool"])
+    return pool

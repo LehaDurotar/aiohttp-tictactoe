@@ -1,8 +1,12 @@
+import sys
 from logging.config import fileConfig
 
 from sqlalchemy import pool, engine_from_config
 
 from alembic import context
+
+sys.path.append(".")
+
 from server.settings import POSTGRES_URI
 from server.models.entities import db
 
