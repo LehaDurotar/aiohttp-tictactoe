@@ -10,4 +10,3 @@ RUN poetry install
 WORKDIR /app
 
 ADD . /app/
-EXPOSE 8000
