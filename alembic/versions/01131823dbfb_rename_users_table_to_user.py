@@ -1,8 +1,8 @@
-"""first migration
+"""Rename users table to user
 
-Revision ID: 2e023f3252a8
+Revision ID: 01131823dbfb
 Revises: 
-Create Date: 2021-01-07 04:04:22.227065
+Create Date: 2021-01-07 20:50:26.951942
 
 """
 import sqlalchemy as sa
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision = '2e023f3252a8'
+revision = '01131823dbfb'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -22,35 +22,33 @@ def upgrade():
     sa.Column('name', sa.String(length=64), nullable=False),
     sa.Column('status', sa.String(length=64), nullable=True),
     sa.Column('next_turn', sa.String(length=64), nullable=True),
-    sa.PrimaryKeyConstraint('name'),
-    sa.UniqueConstraint('name')
+    sa.PrimaryKeyConstraint('name')
     )
-    op.create_table('users',
+    op.create_table('user',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('username', sa.String(length=64), nullable=False),
     sa.Column('password_hash', sa.String(length=128), nullable=False),
     sa.Column('disabled', sa.Boolean(), nullable=False),
     sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('password_hash')
+    sa.UniqueConstraint('id'),
+    sa.UniqueConstraint('password_hash'),
+    sa.UniqueConstraint('username')
     )
-    op.create_index(op.f('ix_users_id'), 'users', ['id'], unique=True)
-    op.create_index(op.f('ix_users_username'), 'users', ['username'], unique=True)
     op.create_table('players',
     sa.Column('name', sa.String(length=64), nullable=False),
     sa.Column('player_id', sa.Integer(), nullable=True),
-    sa.ForeignKeyConstraint(['player_id'], ['users.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('name'),
-    sa.UniqueConstraint('name')
+    sa.Column('is_computer', sa.Boolean(), nullable=True),
+    sa.ForeignKeyConstraint(['player_id'], ['user.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('name')
     )
     op.create_table('gameplayerstats',
-    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('move_type', sa.String(length=10), nullable=False),
     sa.Column('game_name', sa.String(length=64), nullable=True),
     sa.Column('player_name', sa.String(length=64), nullable=True),
     sa.ForeignKeyConstraint(['game_name'], ['gameinstance.name'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['player_name'], ['players.name'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('id')
+    sa.PrimaryKeyConstraint('id')
     )
     op.create_table('moves',
     sa.Column('id', sa.Integer(), nullable=False),
@@ -60,8 +58,7 @@ def upgrade():
     sa.Column('player_name', sa.String(length=64), nullable=True),
     sa.ForeignKeyConstraint(['game_name'], ['gameinstance.name'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['player_name'], ['players.name'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('id')
+    sa.PrimaryKeyConstraint('id')
     )
     # ### end Alembic commands ###
 
@@ -71,8 +68,6 @@ def downgrade():
     op.drop_table('moves')
     op.drop_table('gameplayerstats')
     op.drop_table('players')
-    op.drop_index(op.f('ix_users_username'), table_name='users')
-    op.drop_index(op.f('ix_users_id'), table_name='users')
-    op.drop_table('users')
+    op.drop_table('user')
     op.drop_table('gameinstance')
     # ### end Alembic commands ###

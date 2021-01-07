@@ -12,17 +12,9 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
 
-  redis:
-    image: redis:latest
-    ports:
-      - "6380:6379"
-    volumes:
-      - redis_data:/data/redis_data/
-
   web:
     depends_on:
       - db
-      - redis
     build:
       context: .
       dockerfile: dev.Dockerfile
@@ -34,5 +26,4 @@ services:
       - .:/app
 
 volumes:
-  redis_data:
   pgdata:

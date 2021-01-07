@@ -18,20 +18,6 @@ yarl = ">=1.0,<2.0"
 speedups = ["aiodns", "brotlipy", "cchardet"]
 
 [[package]]
-name = "aiohttp-security"
-version = "0.4.0"
-description = "security for aiohttp.web"
-category = "main"
-optional = false
-python-versions = "*"
-
-[package.dependencies]
-aiohttp = ">=3.2.0"
-
-[package.extras]
-session = ["aiohttp-session"]
-
-[[package]]
 name = "aiohttp-session"
 version = "2.9.0"
 description = "sessions for aiohttp.web"
@@ -574,7 +560,7 @@ testing = ["pytest (>=3.5,!=3.7.3)", "pytest-checkdocs (>=1.2.3)", "pytest-flake
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.7"
-content-hash = "731fe5f35acc912134b5d8356095116e10c5329c738a3ef3f7b3e474d1a1eda0"
+content-hash = "caf9499af3dde7c1ed730920d9e0a8a2913caac906f85b99306d41a9c5f1ad09"
 
 [metadata.files]
 aiohttp = [
@@ -615,10 +601,6 @@ aiohttp = [
     {file = "aiohttp-3.7.3-cp39-cp39-win32.whl", hash = "sha256:3b0036c978cbcc4a4512278e98e3e6d9e6b834dc973206162eddf98b586ef1c6"},
     {file = "aiohttp-3.7.3-cp39-cp39-win_amd64.whl", hash = "sha256:e1b95972a0ae3f248a899cdbac92ba2e01d731225f566569311043ce2226f5e7"},
     {file = "aiohttp-3.7.3.tar.gz", hash = "sha256:9c1a81af067e72261c9cbe33ea792893e83bc6aa987bfbd6fdc1e5e7b22777c4"},
-]
-aiohttp-security = [
-    {file = "aiohttp-security-0.4.0.tar.gz", hash = "sha256:40d4bb150454e392c2dfa3620f6eab28e140e94cf0c2d3b4bf43aef653ec9405"},
-    {file = "aiohttp_security-0.4.0-py3-none-any.whl", hash = "sha256:0bd0ffbe2195c6f79378f24fb89fa19de62c747ab8f1c4df690fada7f8b45834"},
 ]
 aiohttp-session = [
     {file = "aiohttp-session-2.9.0.tar.gz", hash = "sha256:959413468b84e30e7ca09719617cfb0000066a2e0f6c20062d043433e82aeb74"},

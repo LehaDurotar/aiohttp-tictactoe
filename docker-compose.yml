@@ -10,7 +10,6 @@ services:
       - "8080:8080"
     depends_on:
       - db
-      - redis
 
   db:
     image: postgres:11
@@ -23,13 +22,6 @@ services:
     ports:
       - "8004:5432"
 
-  redis:
-    image: redis:latest
-    volumes:
-      - redis_data:/data/redis_data/
-    ports:
-      - "6380:6379"
-
   nginx:
     image: nginx:stable
     volumes:
@@ -39,7 +31,6 @@ services:
 
 volumes:
   pgdata:
-  redis_data:
 
 networks:
   default:

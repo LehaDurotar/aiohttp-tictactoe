@@ -2,9 +2,5 @@ postgres:
   database: tictactoedev_db
   user: tictac
   password: postgres
-  host: localhost # db
+  host: db # localhost
   port: 5432
-
-redis:
-  REDIS_HOST: localhost # redis
-  REDIS_PORT: 6379
