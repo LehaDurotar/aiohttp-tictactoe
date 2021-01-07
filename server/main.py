@@ -1,12 +1,10 @@
 from loguru import logger
 from aiohttp.web import Application, run_app
-from aiohttp_session import setup as setup_session
-from aiohttp_session.redis_storage import RedisStorage
 
 from server.settings import config
 from server.api.routes import setup_routes
 from server.middleware import error_middleware
-from server.db.database import init_pg, close_pg, setup_redis
+from server.db.database import close_pg, init_or_get_pg
 
 
 async def init_app() -> Application:
@@ -16,14 +14,11 @@ async def init_app() -> Application:
     app = Application(middlewares=[error_middleware])
     app["config"] = config
 
-    engine = await init_pg(app)
-    redis_pool = await setup_redis(app)
-
-    setup_session(app, RedisStorage(redis_pool))
-    setup_routes(app)
+    engine = await init_or_get_pg(app)
+    setup_routes(app, engine)
     logger.debug(app["config"])
 
-    app.on_startup.append(init_pg)
+    app.on_startup.append(init_or_get_pg)
     app.on_cleanup.append(close_pg)
 
     return app

@@ -1,13 +1,15 @@
 from aiohttp import web
 
 from .endpoints.game import Game, MakeMove, ShowPlayers, ShowGameBoard, AddPlayerToGame
-from .endpoints.index import Index, Login, Logout, Signup
+from .endpoints.index import Root, Index, Login, Logout, Signup
 
 auth_api = web.Application()
 game_api = web.Application()
 
 
-def setup_routes(app: web.Application):
+def setup_routes(app: web.Application, engine):
+    app.router.add_view("/", Root, name="root")
+
     auth_api.router.add_view("/", Index, name="index")
 
     auth_api.router.add_view("/signup", Signup, name="signup")
@@ -23,6 +25,5 @@ def setup_routes(app: web.Application):
     app.add_subapp("/auth/", auth_api)
     app.add_subapp("/game/", game_api)
 
-    auth_api["db"] = app["db"]
-    game_api["db"] = app["db"]
-    auth_api["redis_pool"] = app["redis_pool"]
+    auth_api["db"] = engine
+    game_api["db"] = engine

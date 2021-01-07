@@ -4,27 +4,9 @@ from itertools import combinations
 from loguru import logger
 from aiohttp import web
 from psycopg2 import IntegrityError
-from aiohttp_session import get_session
 
 from server.middleware import auth_required
-from server.models.entities import Moves, Users, Players, GameInstance, GamePlayerStats
-
-
-class StartGame(web.View):
-    """"""
-
-    async def get(self):
-        logger.info(self.request.path)
-        game_name = self.request.match_info["game_name"]
-        async with self.request.app["db"].acquire() as conn:
-            cursor = await conn.execute(GamePlayerStats.query.where(Players.name == game_name))
-            records = await cursor.fetchall()
-            players = [i[1] for i in records]
-            is_first = choice(players)
-            if is_first == players[0]:
-                return web.json_response({"start": "Your turn first!"})
-            else:
-                pass
+from server.models.entities import Moves, Players, GameInstance, GamePlayerStats
 
 
 class Game(web.View):
@@ -32,6 +14,7 @@ class Game(web.View):
     Shows created games or create a new game into the game table
     """
 
+    @auth_required
     async def get(self):
         logger.info(self.request.path)
         async with self.request.app["db"].acquire() as conn:
@@ -41,28 +24,32 @@ class Game(web.View):
             logger.info(games)
             return web.json_response({"games": games})
 
+    @auth_required
     async def post(self):
-        logger.info(self.request.path)
+        logger.info(self.request)
         data = await self.request.post()
         game_name = data["name"]
         try:
             async with self.request.app["db"].acquire() as conn:
                 await conn.execute(GameInstance.insert().values(name=game_name, status="NEW"))
         except (KeyError, TypeError, ValueError) as err:
-            raise web.json_response({"error": {f"{err}": "You have not specified a game name"}})
+            return web.json_response({"error": {f"{err}": "You have not specified a game name"}})
         except IntegrityError:
-            raise web.json_response({"error": {"integrity": f"A game called {game_name} already exists."}})
+            return web.json_response({"error": {"integrity": f"A game called {game_name} already exists."}})
 
         return web.json_response({"success": f"New Game: {game_name} has been created"})
 
 
-# /game/{game_name}/player
 class AddPlayerToGame(web.View):
+    """
+    The GET request retrieves all players for the game_name
+    The POST request inserts a new player for the game_name
+    path: /game/{game_name}/player
+    """
 
-    # the GET request retrieves all players for the game_name
+    @auth_required
     async def get(self):
-        # select all the players in game_name
-        logger.info(self.request.path)
+        logger.info(self.request)
         game_name = self.request.match_info["game_name"]
         async with self.request.app["db"].acquire() as conn:
             cursor = await conn.execute(GamePlayerStats.query.where(Players.name == game_name))
@@ -71,8 +58,7 @@ class AddPlayerToGame(web.View):
 
     @auth_required
     async def post(self):
-        # the POST request inserts a new player for the game_name
-        logger.info(self.request.path)
+        logger.info(self.request)
         game_name = self.request.match_info["game_name"]
         data = await self.request.post()
         player_name = data["username"]
@@ -86,8 +72,8 @@ class AddPlayerToGame(web.View):
                 num_players = cursor.rowcount
 
                 # tic tac toe can only have 2 players
-                if num_players >= 2:
-                    raise web.json_response({"error": "this game already has 2 players"})
+                if num_players > 2:
+                    raise web.json_response({"error": "This game already has 2 players"})
 
                 query = Players.query.where(Players.name == player_name)
                 cursor = await conn.execute(query)
@@ -118,6 +104,10 @@ class AddPlayerToGame(web.View):
                         raise web.json_response({"error": "the game must have two different players"})
 
                     else:
+                        # mark the second player as computer
+                        await conn.execute(
+                            Players.update.where(Players.name == player_name).values(is_computer=True)
+                        )
                         await conn.execute(
                             GamePlayerStats.insert().values(
                                 move_type="O", game_name=game_name, player_name=player_name
@@ -153,7 +143,6 @@ class AddPlayerToGame(web.View):
             )
 
 
-# /game/{game_name}/player/{player_name}/move
 class MakeMove(web.View):
     """
     Algorithm for finding winner assigns numbers to each square
@@ -163,10 +152,12 @@ class MakeMove(web.View):
     top to bottom though so it isn't confusing for them
     An index in this list is the user square, the number stored
     at that index is the square used for calculating the winner
+    path: /game/{game_name}/player/{player_name}/move
     """
 
+    @auth_required
     async def post(self):
-        logger.info(self.request.path)
+        logger.info(self.request)
         square_list = [4, 3, 8, 9, 5, 1, 2, 7, 6]
         game_name = self.request.match_info["game_name"]
         player_name = self.request.match_info["player_name"]
@@ -177,14 +168,8 @@ class MakeMove(web.View):
             move_square = int(data["square"])
 
         except (KeyError, TypeError, ValueError) as e:
-            logger.error(e)
+            logger.exception(e)
             raise web.json_response({"error": {f"{e}": "You have not requested a square correctly"}})
-
-        # next two if statements make sure square value is valid
-        if not isinstance(move_square, int):
-            raise web.json_response({"error": "square must be a number"})
-
-        move_square = int(move_square)
 
         if move_square < 1 or move_square > 9:
             raise web.json_response({"error": "square must be between 1 and 9"})
@@ -192,6 +177,13 @@ class MakeMove(web.View):
         async with self.request.app["db"].acquire() as conn:
             # game must be IN PROGRESS
             # this is initially set in the add_player_to_game view
+
+            cursor = await conn.execute(Players.query.where(Players.name == player_name))
+            curr_player = await cursor.fetchone()
+
+            if curr_player.is_computer:
+                return web.json_response({"error": "You cannot make turns by the computer"})
+
             cursor = await conn.execute(GameInstance.query.where(GameInstance.name == game_name))
 
             result = await cursor.fetchone()
@@ -199,7 +191,7 @@ class MakeMove(web.View):
             next_turn = result["next_turn"]
 
             if game_status != "IN PROGRESS":
-                raise web.json_response({"error": "To make a move the game must be in progress"})
+                return web.json_response({"error": "To make a move the game must be in progress"})
 
             # the player must be playing in this game
             cursor = await conn.execute(GamePlayerStats.query.where(GamePlayerStats.game_name == game_name))
@@ -208,11 +200,11 @@ class MakeMove(web.View):
             participants = [i[3] for i in current_game]
 
             if not (player_name in participants):
-                raise web.json_response({"error": {f"{player_name}": "Player is not playing this game"}})
+                return web.json_response({"error": {f"{player_name}": "Player is not playing this game"}})
 
             # check if it's this players turn
             if next_turn != player_name:
-                raise web.json_response({"error": "It is not this players turn"})
+                return web.json_response({"error": "It is not this players turn"})
 
             # cant move to same square twice
             cursor = await conn.execute(Moves.query.where(Moves.game_name == game_name))
@@ -221,7 +213,7 @@ class MakeMove(web.View):
             all_squares = [i[1] for i in all_moves]
 
             if move_square in all_squares:
-                raise web.json_response({"error": f"Square {move_square} has already been used"})
+                return web.json_response({"error": f"Square {move_square} has already been used"})
 
             # insert the new move
             await conn.execute(
@@ -262,18 +254,52 @@ class MakeMove(web.View):
             await conn.execute(
                 GameInstance.update.where(GameInstance.name == game_name).values(next_turn=next_player)
             )
+            # computer section
+            # get all free squares
+            poss_squares = set(square_list).difference(set(all_squares))
 
-        return web.json_response({f"{player_name}": f"moved an {move_type} to square {move_square}"})
+            # choose a random free square for the computer move
+            if len(poss_squares) == 0:
+                computer_move_square = choice(square_list)
+            else:
+                computer_move_square = choice(list(poss_squares))
+
+            if move_type == "X":
+                computer_move_type = "O"
+            else:
+                computer_move_type = "X"
+            # insert computer move in the moves table and switch player
+            await conn.execute(
+                Moves.insert().values(
+                    square=computer_move_square,
+                    move_type=computer_move_type,
+                    game_name=game_name,
+                    player_name=next_player,
+                )
+            )
+            await conn.execute(
+                GameInstance.update.where(GameInstance.name == game_name).values(next_turn=player_name)
+            )
+
+        return web.json_response(
+            {
+                f"success": [
+                    {player_name: f"Moved an {move_type} to square {move_square}"},
+                    {next_player: f"Moved an {computer_move_type} to square {computer_move_square}"},
+                ]
+            }
+        )
 
 
-# /game/{game_name}/show
 class ShowGameBoard(web.View):
     """
     Show all moves on game field
+    path: /game/{game_name}/board
     """
 
+    @auth_required
     async def get(self):
-        logger.info(self.request.path)
+        logger.info(self.request)
         game_name = self.request.match_info["game_name"]
 
         async with self.request.app["db"].acquire() as conn:
@@ -281,29 +307,26 @@ class ShowGameBoard(web.View):
             all_moves = await cursor.fetchall()
 
             moves_dict = {i[1]: i[2] for i in all_moves}
-            moves_str = "\n"
-            for i in range(1, 10):
-                if i in moves_dict:
-                    moves_str += moves_dict[i] + " "
-                else:
-                    moves_str += "  "
-                if i % 3 == 0:
-                    moves_str += "\n"
 
-        return web.json_response({"success": moves_str})
+        return web.json_response({"success": moves_dict})
 
 
 class ShowPlayers(web.View):
+    """
+    Shows all registered players
+    path: /game/players
+    """
+
     @auth_required
     async def get(self):
         logger.info(self.request.path)
         async with self.request.app["db"].acquire() as conn:
-            s = Users.query
+            s = Players.query
             cursor = await conn.execute(s)
             records = await cursor.fetchall()
-            players = [i[1] for i in records]
+            players = {i[0] for i in records}
             return web.json_response({"success": f"players are: {players}"})
 
 
-def subset_sum(lst, target):
-    return len(lst) > 2 and any(sum(x) == target for x in combinations(lst, 3))
+def subset_sum(sub: int, target: int):
+    return len(sub) > 2 and any(sum(x) == target for x in combinations(sub, 3))

@@ -1,75 +1,79 @@
 from loguru import logger
 from aiohttp import web
-from aiohttp_session import get_session, new_session
 
-from server.models.entities import Users
+from server.models.entities import User
 
 
 class Index(web.View):
     """
-    Main view
+    Main view for auth api
+    path: /auth/
     """
 
     async def get(self):
-        logger.info(self.request.path)
-        session = await get_session(self.request)
-        if "username" not in session:
-            return web.json_response({"error": "Auth Required!"})
-        else:
-            user = session["username"]
-            async with self.request.app["db"].acquire() as conn:
-                # curr_user = await Users.get_user_by_name(conn, user)
-                stats = ""
-                return web.json_response({"success": {user: stats}})
+        logger.info(self.request)
+        async with self.request.app["db"].acquire() as conn:
+            try:
+                user = await User.get_user(conn)
+                if user["disabled"]:
+                    return web.json_response({"error": "Auth Required!"})
+                else:
+                    return web.json_response({"success": f"Welcome {user['username']}"})
+            except ValueError:
+                return web.json_response({"error": "You need to register"})
 
 
 class Login(web.View):
-    """"""
-
-    async def get(self):
-        logger.info(self.request.path)
-        session = await get_session(self.request)
-        user = session["username"]
-        if user:
-            raise web.HTTPFound("/auth/")
+    """
+    Provides simple authorization mechanism with store active user in the database
+    path: /auth/login
+    """
 
     async def post(self):
-        logger.info(self.request.path)
-        session = await new_session(self.request)
+        logger.info(self.request)
         user_data = await self.request.post()
 
         async with self.request.app["db"].acquire() as conn:
-            error = await Users.validate_login_data(conn, user_data)
+            error = await User.validate_login_data(conn, user_data)
             if error:
                 return web.json_response({"error": error})
-            else:
-                session["username"] = user_data["username"]
 
-            return web.HTTPFound("/auth/login")
+            await User.remember(conn)
+            raise web.HTTPFound("/auth/")
 
 
 class Logout(web.View):
-    """"""
+    """
+    path: /auth/logout
+    """
 
     async def get(self):
-        logger.info(self.request.path)
-        session = await get_session(self.request)
-        session["username"] = None
-        return web.json_response({"success": "logout"})
+        logger.info(self.request)
+        async with self.request.app["db"] as conn:
+            await User.forget(conn)
+            raise web.HTTPFound("/auth/")
 
 
 class Signup(web.View):
-    """"""
+    """
+    Simple user registration using log/pass
+    The password is stored as hash
+    path: /auth/signup
+    """
 
     async def post(self):
-        logger.info(self.request.path)
-        # session = await get_session(self.request)
+        logger.info(self.request)
         user_data = await self.request.post()
         async with self.request.app["db"].acquire() as conn:
-            error = await Users.validate_register_data(conn, user_data)
+            error = await User.validate_register_data(conn, user_data)
             if error:
                 return web.json_response({"error": error})
 
-            await Users.create_user(conn, user_data)
-            # session["username"] = user_data["username"]
+            await User.create_user(conn, user_data)
             return web.json_response({"success": f"User {user_data['username']} is created!"})
+
+
+class Root(web.View):
+    async def get(self):
+        logger.info(f"{self.request.path} redirect to /auth/")
+        raise web.HTTPFound("/auth/")
