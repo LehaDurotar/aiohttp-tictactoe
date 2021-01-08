@@ -1,4 +1,4 @@
-from typing import Dict, Union
+from typing import Dict
 
 from server.db.database import BaseModel, db
 from server.db.security import check_password_hash, generate_password_hash
@@ -18,7 +18,12 @@ class User(BaseModel):
     disabled = db.Column(db.Boolean, nullable=False, default=True)
 
     @classmethod
-    async def get_user(cls, conn):
+    async def get_user(cls, conn) -> Dict[str, str]:
+        """
+        Returns the currently registered
+        :param conn: pg.sa connection
+        :return: user data
+        """
         query = await conn.execute(User.query)
         user = await query.fetchone()
         return user
@@ -31,66 +36,47 @@ class User(BaseModel):
         return False
 
     @classmethod
-    async def remember(cls, conn) -> None:
+    async def remember(cls, conn, password) -> None:
+        """
+        Set simple db session with the currently registered user
+        :param conn: pg.sa connection
+        :param password:
+        """
         user = await cls.get_user(conn)
-        query = User.update.values(username=user["username"], disabled=False)
+
+        if not user:
+            raise ValueError("This user does not exist")
+
+        if not check_password_hash(password, user["password_hash"]):
+            raise ValueError("Invalid password")
+
+        query = cls.update.values(username=user["username"], disabled=False)
         await conn.execute(query)
 
     @classmethod
     async def forget(cls, conn) -> None:
+        """
+        Close login session
+        :param conn: pg.sa connection
+        """
         user = await cls.get_user(conn)
-        query = User.update.values(username=user["username"], disabled=True)
+        query = cls.update.values(username=user["username"], disabled=True)
         await conn.execute(query)
 
-    @staticmethod
-    async def create_user(conn, user_data: dict) -> None:
+    @classmethod
+    async def create_user(cls, conn, user_data: Dict[str, str]) -> None:
+        """
+        Creates a user record in the database
+        :param conn: pg.sa connection
+        :param user_data: login, pass, confirm pass
+        """
+        user = await User.get_user(conn)
+        if user:
+            raise ValueError("This user already exists")
         username, password = user_data["username"], user_data["password"]
         hashed_pass = generate_password_hash(password)
-        query = User.insert().values(username=username, password_hash=hashed_pass)
+        query = cls.insert().values(username=username, password_hash=hashed_pass)
         await conn.execute(query)
-
-    @classmethod
-    async def validate_login_data(cls, conn, data: Dict[str, str]) -> Union[str, None]:
-        """
-        Simple login data validation from POST request
-        :param conn: DB pool
-        :param data: login, pass
-        :return: Specific error or None if check passed
-        """
-        username, password = data["username"], data["password"]
-
-        if not username:
-            return "username is required"
-        if not password:
-            return "password is required"
-
-        user = await cls.get_user(conn)
-        if not user:
-            return "invalid username"
-        if not check_password_hash(password, user["password_hash"]):
-            return "invalid password"
-        else:
-            return None
-
-    @classmethod
-    async def validate_register_data(cls, conn, data: Dict[str, str]) -> Union[str, None]:
-        """
-        Simple register data validation from POST request
-        :param conn: DB pool
-        :param data: login, pass
-        :return: Specific error or None if check passed
-        """
-        username, password = data["username"], data["password"]
-
-        if not username:
-            return {"error": "username is required"}
-        if not password:
-            return {"error": "password is required"}
-        user = await cls.get_user(conn)
-        if user:
-            return {"error": "This user already exists"}
-        else:
-            return None
 
 
 class Players(BaseModel):
@@ -106,11 +92,11 @@ class Players(BaseModel):
     player_id = db.Column(db.Integer, db.ForeignKey(f"{User.__tablename__}.id", ondelete="CASCADE"))
     is_computer = db.Column(db.Boolean, default=False)
 
-    @staticmethod
-    async def get_player_by_name(conn, name: str):
-        query = await conn.execute(Players.query.where(Players.name == name))
-        user = await query.fetchone()
-        return user
+    @classmethod
+    async def get_player_by_name(cls, conn, name: str):
+        query = await conn.execute(cls.query.where(cls.name == name and not cls.is_computer))
+        player = await query.fetchone()
+        return player
 
 
 class GameInstance(BaseModel):
