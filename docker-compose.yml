@@ -5,7 +5,7 @@ services:
     restart: always
     volumes:
     - .:/app
-    command: bash -c "sh ./scripts/prestart.sh && gunicorn server.main:init_app --config python:config.gunicorn"
+    command: bash -c "make migrate && gunicorn server.main:init_app --config python:config.gunicorn"
     ports:
       - "8080:8080"
     depends_on:

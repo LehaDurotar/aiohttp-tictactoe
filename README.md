@@ -7,21 +7,20 @@
 ```
 Воспользуемcя модулем python requests для тестирования сервиса
 
-~ post("http://0.0.0.0:8080/auth/signup", {"username": "testuser", "password": "1234"}).json()
+~ post("http://0.0.0.0:8080/auth/signup", {"username": "testuser", "password": "1234", "confirm":"1234"}).json()
 ~ {'success': 'User testuser is created!'}
 ~ get("http://0.0.0.0:8080/auth/").json()
 ~ {'error': 'Auth Required!'}
 ~ post("http://0.0.0.0:8080/auth/login", {"username":"testuser", "password":"1234"}).json()
 ~ {'success': 'Welcome testuser'}
-~ post("http://0.0.0.0:8080/game/", {"name": "testgame"}).json()
+~ post("http://0.0.0.0:8080/game/list", {"name": "testgame"}).json()
 ~ {'success': 'New Game: testgame has been created'}
-~ post("http://0.0.0.0:8080/game/testgame/player", {"username": "player1"}).json()
-~ {'success': {'new player': 'New player: player1 has been added to game: testgame and is using crosses '}}
-~ post("http://0.0.0.0:8080/game/testgame/player", {"username": "computer"}).json()
-~ {'success': {'new player': 'New player: computer has been added to game: testgame and is using noughts '}}
-~ post("http://0.0.0.0:8080/game/testgame/player/player1/move", {"square": "1"}).json()
+~ post("http://0.0.0.0:8080/game/testgame/add", {"username": "player1"}).json()
+~ {'success': [{'player': 'player1 has been added to game: testgame and is using crosses'}, 
+  {'computer': 'Computer has benn added to game testgame and is using noughts'}]}
+~ post("http://0.0.0.0:8080/game/testgame/move", {"square": "1"}).json()
 ~ {'success': [{'player1': 'Moved an X to square 1'}, {'computer': 'Moved an O to square 7'}]}
-~ post("http://0.0.0.0:8080/game/testgame/player/player1/move", {"square": "2"}).json()
+~ post("http://0.0.0.0:8080/game/testgame/move", {"square": "2"}).json()
 ~ {'success': [{'player1': 'Moved an X to square 2'}, {'computer': 'Moved an O to square 8'}]}
 ...
 ~ {'success': {'player1': 'Congratulations You won the game.'}}
@@ -35,7 +34,7 @@
 ## Описание методов API
 #### Регистрирует нового игрока в БД
 POST ```/auth/signup```
-data: ```{username: <name>, password: <password>}```
+data: ```{username: <name>, password: <password>, confirm: <password>}```
 #### Авторизация
 POST ```/auth/login```
 data: ```{username: <name>, password: <password>}```
@@ -45,15 +44,13 @@ GET ```/auth/logout```
 POST ```/game/```
 data: ```{ 'name' : <game_name> }```
 #### Добавляет нового игрока в существующую игру
-POST ```/game/{game_name}/player```
+POST ```/game/{game_name}/add```
 data: ```{ 'player_name' : <name> }```
-#### Сделать ход
-POST ```/game/{game_name}/player/{player_name}/move```
+#### Сделать ход, на каждый ваш ход компьютер автоматически делает свой ход
+POST ```/game/{game_name}/move```
 data: ```{ 'square' : <number> }```
 #### Показать инфо о всех играх
-GET ```/game```
-#### Показать всех зарегистрированных игроков
-GET ```/game/player```
+GET ```/game/list```
 #### Показать текущее игровое поле
 GET ```/game/{game_name}/board```
 

@@ -6,7 +6,7 @@ refactor:
 	poetry run isort ./
 
 migrate:
-	PYTHONPATH=$(shell pwd):${PYTHONPATH} poetry run alembic upgrade head
+	alembic upgrade head
 
 lint:
 	poetry run black --check ./

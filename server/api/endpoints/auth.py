@@ -1,7 +1,9 @@
 from loguru import logger
 from aiohttp import web
+from pydantic import ValidationError
 
 from server.models.entities import User
+from server.schemas.validators.user import UserLogin, UserSignup
 
 
 class Index(web.View):
@@ -33,12 +35,13 @@ class Login(web.View):
         logger.info(self.request)
         user_data = await self.request.post()
 
-        async with self.request.app["db"].acquire() as conn:
-            error = await User.validate_login_data(conn, user_data)
-            if error:
-                return web.json_response({"error": error})
+        try:
+            UserLogin(username=user_data.get("username"), password=user_data.get("password"))
+        except ValidationError as err:
+            return web.Response(body=err.json())
 
-            await User.remember(conn)
+        async with self.request.app["db"].acquire() as conn:
+            await User.remember(conn, user_data["password"])
             raise web.HTTPFound("/auth/")
 
 
@@ -49,7 +52,7 @@ class Logout(web.View):
 
     async def get(self):
         logger.info(self.request)
-        async with self.request.app["db"] as conn:
+        async with self.request.app["db"].acquire() as conn:
             await User.forget(conn)
             raise web.HTTPFound("/auth/")
 
@@ -64,11 +67,17 @@ class Signup(web.View):
     async def post(self):
         logger.info(self.request)
         user_data = await self.request.post()
-        async with self.request.app["db"].acquire() as conn:
-            error = await User.validate_register_data(conn, user_data)
-            if error:
-                return web.json_response({"error": error})
 
+        try:
+            UserSignup(
+                username=user_data.get("username"),
+                password=user_data.get("password"),
+                confirm=user_data.get("confirm"),
+            )
+        except ValidationError as err:
+            return web.Response(body=err.json())
+
+        async with self.request.app["db"].acquire() as conn:
             await User.create_user(conn, user_data)
             return web.json_response({"success": f"User {user_data['username']} is created!"})
 

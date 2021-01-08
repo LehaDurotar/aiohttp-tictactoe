@@ -19,7 +19,7 @@ services:
       context: .
       dockerfile: dev.Dockerfile
     restart: always
-    command: bash -c "sh ./scripts/prestart.sh && make start"
+    command: bash -c "make migrate && make start"
     ports:
       - "8080:8080"
     volumes:
