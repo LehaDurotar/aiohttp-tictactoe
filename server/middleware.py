@@ -1,3 +1,4 @@
+import asyncio
 import functools
 
 from loguru import logger
@@ -9,19 +10,21 @@ from server.models.entities import User
 @web.middleware
 async def error_middleware(request: web.Request, handler):
     """
-    Catch uncaught exceptions
+    Catch HTTP client errors
+    :return: json response
     """
     try:
-        response = await handler(request)
-        if response.status != 404:
-            return response
-        message = response.message
-    except web.HTTPException as ex:
-        if ex.status != 404:
-            raise
-        message = ex.body
-    logger.error(message)
-    return web.json_response({"error": message})
+        return await handler(request)
+    except web.HTTPException as err:
+        if err.status_code != 302:
+            logger.error(err.text)
+            return web.json_response({"error": err.text})
+    except asyncio.CancelledError as err:
+        logger.error(str(err))
+        raise
+    except Exception as err:
+        logger.error(str(err))
+        return web.json_response({"error": str(err)})
 
 
 def auth_required(f):

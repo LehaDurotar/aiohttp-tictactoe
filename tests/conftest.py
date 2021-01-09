@@ -1,13 +1,12 @@
-import sys
-
-sys.path.append("server")
-
 import pytest
+from yarl import URL
 
-from server.main import init_app
+from server.settings import POSTGRES_URI
 
 
-@pytest.fixture
-async def cli(loop, test_client):
-    app = init_app()
-    return await test_client(app)
+@pytest.fixture(scope="session")
+def pg_url():
+    """
+    Provides base PostgreSQL URL for creating temporary databases.
+    """
+    return URL(POSTGRES_URI)

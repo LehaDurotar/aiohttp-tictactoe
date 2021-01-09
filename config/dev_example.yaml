@@ -2,5 +2,5 @@ postgres:
   database: tictactoedev_db
   user: tictac
   password: postgres
-  host: db # localhost
+  host: db # "localhost" if run not in docker
   port: 5432
