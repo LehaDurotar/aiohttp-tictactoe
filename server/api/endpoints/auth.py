@@ -42,7 +42,8 @@ class Login(web.View):
 
         async with self.request.app["db"].acquire() as conn:
             await User.remember(conn, user_data["password"])
-            raise web.HTTPFound("/auth/")
+            # raise web.HTTPFound("/auth/")
+            return web.json_response({"success": "You are logged in!"})
 
 
 class Logout(web.View):
@@ -54,7 +55,8 @@ class Logout(web.View):
         logger.info(self.request)
         async with self.request.app["db"].acquire() as conn:
             await User.forget(conn)
-            raise web.HTTPFound("/auth/")
+            # raise web.HTTPFound("/auth/")
+            return web.json_response({"success": "You have logged out!"})
 
 
 class Signup(web.View):

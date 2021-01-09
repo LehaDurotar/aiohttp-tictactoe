@@ -1,12 +1,9 @@
 import datetime
-from typing import List
 
 import aiopg.sa
 from gino import Gino
 from loguru import logger
-from sqlalchemy import Table, Column, inspect
-
-from server.settings import POSTGRES_URI
+from sqlalchemy import inspect
 
 db = Gino()
 
@@ -16,8 +13,8 @@ class BaseModel(db.Model):
 
     def __str__(self):
         model = self.__class__.__name__
-        table: Table = inspect(self.__class__)
-        primary_key_columns: List[Column] = table.primary_key.columns
+        table = inspect(self.__class__)
+        primary_key_columns = table.primary_key.columns
         values = {
             column.name: getattr(self, self._column_name_map[column.name]) for column in primary_key_columns
         }
@@ -37,13 +34,13 @@ class TimedBaseModel(BaseModel):
     )
 
 
-async def init_or_get_pg(app):
+async def init_or_get_pg(app, pg_url):
     """
     Connect to Postgres or get live instance
     """
     if "db" in app:
         return app["db"]
-    engine = await aiopg.sa.create_engine(dsn=POSTGRES_URI)
+    engine = await aiopg.sa.create_engine(dsn=str(pg_url))
     logger.info("Setup DB Connection")
     app["db"] = engine
     return engine

@@ -86,10 +86,11 @@ class AddPlayerToGame(web.View):
                 await conn.execute(Players.insert().values(name=player_name))
 
                 # if no players exist, this player is assigned crosses
-                query = GamePlayerStats.insert().values(
-                    move_type="X", game_name=game_name, player_name=player_name
+                await conn.execute(
+                    GamePlayerStats.insert().values(
+                        move_type="X", game_name=game_name, player_name=player_name
+                    )
                 )
-                await conn.execute(query)
 
                 # this player will start the game so make it
                 await conn.execute(
